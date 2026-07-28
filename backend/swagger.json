@@ -509,6 +509,75 @@
           "200": { "description": "Product removed from cart successfully" }
         }
       }
+    },
+    "/wishlist": {
+      "get": {
+        "summary": "Fetch user's wishlist (Authenticated Customer)",
+        "tags": ["Wishlist"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Wishlist retrieved successfully" }
+        }
+      },
+      "post": {
+        "summary": "Add a product to wishlist (Authenticated Customer)",
+        "tags": ["Wishlist"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId"],
+                "properties": {
+                  "productId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Product added to wishlist successfully" }
+        }
+      }
+    },
+    "/wishlist/move-to-cart": {
+      "post": {
+        "summary": "Move product from wishlist to cart (Authenticated Customer)",
+        "tags": ["Wishlist"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId"],
+                "properties": {
+                  "productId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Product moved to cart successfully" }
+        }
+      }
+    },
+    "/wishlist/{productId}": {
+      "delete": {
+        "summary": "Remove product from wishlist (Authenticated Customer)",
+        "tags": ["Wishlist"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Product removed from wishlist successfully" }
+        }
+      }
     }
   },
   "components": {
