@@ -4,8 +4,12 @@ import express from 'express';
 import multer from 'multer';
 import { productController } from '../controllers/product.controller.js';
 import { protect, authorize } from '../middlewares/auth.middleware.js';
-import { createProductSchema, updateProductSchema } from '../validators/product.validator.js';
-import { validate } from '../middlewares/validator.middleware.js';
+import {
+  createProductSchema,
+  updateProductSchema,
+  listProductsQuerySchema,
+} from '../validators/product.validator.js';
+import { validate, validateQuery } from '../middlewares/validator.middleware.js';
 
 const router = express.Router();
 
@@ -23,6 +27,10 @@ const upload = multer({
     }
   },
 });
+
+// Public read catalog routes
+router.get('/', validateQuery(listProductsQuerySchema), productController.listProducts);
+router.get('/slug/:slug', productController.getProductBySlug);
 
 // Guard all product mutations for admin roles
 router.use(protect);

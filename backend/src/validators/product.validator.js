@@ -44,3 +44,16 @@ export const updateProductSchema = z.object({
   message: 'Sale price must be lower than standard price',
   path: ['salePrice']
 });
+
+/**
+ * Validation schema for listing products.
+ */
+export const listProductsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  sort: z.enum(['price_asc', 'price_desc', 'newest', 'rating', 'name_asc', 'name_desc']).default('newest'),
+  search: z.string().trim().optional(),
+  categoryId: z.string().regex(objectIdRegex, 'Invalid category ID').optional(),
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+});

@@ -146,4 +146,33 @@ export const productService = {
 
     return product.images;
   },
+
+  /**
+   * Retrieve paginated catalog list matching query filters.
+   * @param {Object} queryParams
+   */
+  listProducts: async (queryParams) => {
+    const { page, limit, sort, search, categoryId, minPrice, maxPrice } = queryParams;
+
+    const filters = { search, categoryId, minPrice, maxPrice };
+    const options = { page, limit, sort };
+
+    return await productRepository.findProductsAdvanced(filters, options);
+  },
+
+  /**
+   * Fetch a single active product details using its unique slug value.
+   * @param {string} slug
+   */
+  getProductBySlug: async (slug) => {
+    const product = await productRepository.model
+      .findOne({ slug, isActive: true })
+      .populate('categoryId', 'name slug');
+
+    if (!product) {
+      throw AppError.notFound('Product not found', ERROR_CODES.NOT_FOUND);
+    }
+
+    return product;
+  },
 };

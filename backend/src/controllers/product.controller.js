@@ -81,4 +81,39 @@ export const productController = {
       next(error);
     }
   },
+
+  /**
+   * Public list and search of product catalogs.
+   */
+  listProducts: async (req, res, next) => {
+    try {
+      const result = await productService.listProducts(req.query);
+      res.status(200).json({
+        status: 'success',
+        data: {
+          products: result.products,
+          pagination: result.pagination,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Fetch single product details using its unique slug value.
+   */
+  getProductBySlug: async (req, res, next) => {
+    try {
+      const result = await productService.getProductBySlug(req.params.slug);
+      res.status(200).json({
+        status: 'success',
+        data: {
+          product: result,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 };
