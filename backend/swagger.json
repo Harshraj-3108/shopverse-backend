@@ -637,6 +637,76 @@
           "200": { "description": "Order details retrieved successfully" }
         }
       }
+    },
+    "/payments/initialize": {
+      "post": {
+        "summary": "Initialize payment order on the gateway (Authenticated Customer)",
+        "tags": ["Payments"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["orderId"],
+                "properties": {
+                  "orderId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Payment initialized successfully" }
+        }
+      }
+    },
+    "/payments/verify": {
+      "post": {
+        "summary": "Verify payment gateway signatures (Authenticated Customer)",
+        "tags": ["Payments"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["orderId", "gatewayPaymentId", "signature"],
+                "properties": {
+                  "orderId": { "type": "string" },
+                  "gatewayPaymentId": { "type": "string" },
+                  "signature": { "type": "string" },
+                  "gatewayOrderId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Payment verified successfully" }
+        }
+      }
+    },
+    "/payments/webhook": {
+      "post": {
+        "summary": "Handle gateway asynchronous webhook events (Public)",
+        "tags": ["Payments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Webhook received" }
+        }
+      }
     }
   },
   "components": {
