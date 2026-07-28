@@ -432,6 +432,83 @@
           "200": { "description": "Review deleted successfully" }
         }
       }
+    },
+    "/cart": {
+      "get": {
+        "summary": "Fetch user's shopping cart (Authenticated Customer)",
+        "tags": ["Cart"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Shopping cart retrieved" }
+        }
+      },
+      "post": {
+        "summary": "Add product to cart (Authenticated Customer)",
+        "tags": ["Cart"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId"],
+                "properties": {
+                  "productId": { "type": "string" },
+                  "quantity": { "type": "integer", "default": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Item added to cart successfully" }
+        }
+      },
+      "put": {
+        "summary": "Update item quantity in cart (Authenticated Customer)",
+        "tags": ["Cart"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["productId", "quantity"],
+                "properties": {
+                  "productId": { "type": "string" },
+                  "quantity": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Cart quantity updated successfully" }
+        }
+      },
+      "delete": {
+        "summary": "Clear all items from cart (Authenticated Customer)",
+        "tags": ["Cart"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Cart cleared successfully" }
+        }
+      }
+    },
+    "/cart/{productId}": {
+      "delete": {
+        "summary": "Remove a product from cart (Authenticated Customer)",
+        "tags": ["Cart"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "productId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Product removed from cart successfully" }
+        }
+      }
     }
   },
   "components": {
