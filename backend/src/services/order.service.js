@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 import { OrderRepository } from '../repositories/order.repository.js';
 import { Cart } from '../models/Cart.js';
 import { Product } from '../models/Product.js';
+import { Coupon } from '../models/Coupon.js';
+import { couponService } from './coupon.service.js';
 import { AppError } from '../errors/AppError.js';
 import { ERROR_CODES } from '../constants/errorCodes.js';
 
@@ -52,11 +54,20 @@ export const orderService = {
 
       // 3. Perform invoice details math calculations
       const subtotal = cart.subtotal;
+      let finalDiscount = 0;
+      let couponDoc = null;
+
+      if (cart.couponCode) {
+        const validation = await couponService.validateCoupon(cart.couponCode, userId, subtotal);
+        finalDiscount = validation.discount;
+        couponDoc = validation.coupon;
+      }
+
       const taxRate = 0.18; // 18% GST standard rate
       const tax = Number((subtotal * taxRate).toFixed(2));
       const shippingFee = subtotal > 1500 ? 0 : 50; // Free shipping above 1500
       
-      const grandTotal = Number((subtotal - discount + tax + shippingFee).toFixed(2));
+      const grandTotal = Number((subtotal - finalDiscount + tax + shippingFee).toFixed(2));
 
       // 4. Generate unique invoice ORD order tracking number
       let orderNumber;
@@ -105,7 +116,8 @@ export const orderService = {
         paymentStatus: 'pending', // Online starts pending; COD is pending till delivery
         status: 'pending',
         subtotal,
-        discount,
+        discount: finalDiscount,
+        couponCode: cart.couponCode || null,
         tax,
         shippingFee,
         grandTotal,
@@ -113,8 +125,21 @@ export const orderService = {
 
       await order.save({ session });
 
+      // Record coupon usage atomically
+      if (couponDoc) {
+        await Coupon.updateOne(
+          { _id: couponDoc._id },
+          {
+            $inc: { usedCount: 1 },
+            $push: { usedBy: { userId, orderId: order._id, usedAt: new Date() } },
+          }
+        ).session(session);
+      }
+
       // 7. Clear items from shopping cart
       cart.items = [];
+      cart.couponCode = null;
+      cart.discount = 0;
       await cart.save({ session });
 
       // Commit transaction atomically

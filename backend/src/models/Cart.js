@@ -39,6 +39,14 @@ const cartSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    couponCode: {
+      type: String,
+      default: null,
+    },
+    discount: {
+      type: Number,
+      default: 0,
+    },
     total: {
       type: Number,
       default: 0,
@@ -64,7 +72,11 @@ cartSchema.pre('save', function () {
   });
 
   this.subtotal = Number(computedSubtotal.toFixed(2));
-  this.total = Number(computedSubtotal.toFixed(2)); // Cart total equals subtotal before coupons
+  
+  // Ensure discount does not exceed subtotal
+  this.discount = Math.min(this.discount || 0, this.subtotal);
+  this.total = Number((this.subtotal - this.discount).toFixed(2));
+  
   this.itemCount = computedCount;
 });
 
