@@ -578,6 +578,65 @@
           "200": { "description": "Product removed from wishlist successfully" }
         }
       }
+    },
+    "/orders": {
+      "get": {
+        "summary": "Retrieve user's orders history (Authenticated Customer)",
+        "tags": ["Orders"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User's orders list retrieved successfully" }
+        }
+      },
+      "post": {
+        "summary": "Place a new order from cart (Authenticated Customer)",
+        "tags": ["Orders"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["shippingAddress", "paymentMode"],
+                "properties": {
+                  "shippingAddress": {
+                    "type": "object",
+                    "required": ["fullName", "street", "city", "state", "zipCode", "country", "phone"],
+                    "properties": {
+                      "fullName": { "type": "string" },
+                      "street": { "type": "string" },
+                      "city": { "type": "string" },
+                      "state": { "type": "string" },
+                      "zipCode": { "type": "string" },
+                      "country": { "type": "string" },
+                      "phone": { "type": "string" }
+                    }
+                  },
+                  "paymentMode": { "type": "string", "enum": ["COD", "ONLINE"] },
+                  "discount": { "type": "number", "default": 0 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Order placed successfully" }
+        }
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "summary": "Fetch details of a single order (Authenticated Customer)",
+        "tags": ["Orders"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Order details retrieved successfully" }
+        }
+      }
     }
   },
   "components": {
