@@ -202,6 +202,125 @@
           "200": { "description": "Category deleted successfully" }
         }
       }
+    },
+    "/products": {
+      "post": {
+        "summary": "Create a new product (Admin Only)",
+        "tags": ["Products"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "sku", "description", "price", "stockQuantity", "categoryId"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "sku": { "type": "string" },
+                  "description": { "type": "string" },
+                  "price": { "type": "number" },
+                  "salePrice": { "type": "number" },
+                  "stockQuantity": { "type": "integer" },
+                  "categoryId": { "type": "string" },
+                  "attributes": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Product created successfully" }
+        }
+      }
+    },
+    "/products/{id}": {
+      "put": {
+        "summary": "Update product details (Admin Only)",
+        "tags": ["Products"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "sku": { "type": "string" },
+                  "description": { "type": "string" },
+                  "price": { "type": "number" },
+                  "salePrice": { "type": "number" },
+                  "stockQuantity": { "type": "integer" },
+                  "categoryId": { "type": "string" },
+                  "attributes": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Product updated successfully" }
+        }
+      },
+      "delete": {
+        "summary": "Delete a product (Admin Only)",
+        "tags": ["Products"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Product deleted successfully" }
+        }
+      }
+    },
+    "/products/{id}/images": {
+      "post": {
+        "summary": "Upload images for a product (Admin Only)",
+        "tags": ["Products"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "images": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Images uploaded successfully" }
+        }
+      }
     }
   },
   "components": {
