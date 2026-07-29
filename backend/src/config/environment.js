@@ -23,6 +23,8 @@ const envSchema = z.object({
   IMAGEKIT_URL_ENDPOINT: z.string().url({ message: 'IMAGEKIT_URL_ENDPOINT must be a valid URL' }),
   RAZORPAY_KEY_ID: z.string().min(1, { message: 'RAZORPAY_KEY_ID is required' }),
   RAZORPAY_KEY_SECRET: z.string().min(1, { message: 'RAZORPAY_KEY_SECRET is required' }),
+  // Optional: comma-separated allowed origins for production CORS
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);
