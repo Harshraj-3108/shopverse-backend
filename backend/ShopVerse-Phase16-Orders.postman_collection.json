@@ -1,0 +1,442 @@
+{
+  "info": {
+    "_postman_id": "phase16-order-management",
+    "name": "ShopVerse – Phase 16: Order Management & Tracking",
+    "description": "Complete API collection for the Order Management & Tracking system. Covers Customer order operations and Admin order administration.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api/v1", "type": "string" },
+    { "key": "customerToken", "value": "", "type": "string", "description": "JWT Access Token for a customer account" },
+    { "key": "adminToken", "value": "", "type": "string", "description": "JWT Access Token for an admin account" },
+    { "key": "orderId", "value": "", "type": "string", "description": "MongoDB ObjectId of an existing order" }
+  ],
+  "item": [
+    {
+      "name": "🛍️ Customer – Orders",
+      "item": [
+        {
+          "name": "Place Order (COD)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/orders", "host": ["{{baseUrl}}"], "path": ["orders"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shippingAddress\": {\n    \"fullName\": \"John Doe\",\n    \"street\": \"123 MG Road\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"zipCode\": \"400001\",\n    \"country\": \"India\",\n    \"phone\": \"9876543210\"\n  },\n  \"paymentMode\": \"COD\"\n}"
+            },
+            "description": "Places a new order using items currently in the customer's cart. Cart must be non-empty. Decrements product stock atomically."
+          }
+        },
+        {
+          "name": "Get My Orders (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Returns a paginated list of the authenticated customer's orders, newest first."
+          }
+        },
+        {
+          "name": "Get Order Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "{{orderId}}"]
+            },
+            "description": "Retrieves full details of a specific order. Ownership-checked — customers can only view their own orders."
+          }
+        },
+        {
+          "name": "Get Order Timeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "{{orderId}}", "timeline"]
+            },
+            "description": "Returns the complete status timeline (audit trail) of an order. Each event records status, description, actor, and timestamp."
+          }
+        },
+        {
+          "name": "Cancel My Order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "{{orderId}}", "cancel"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Changed my mind about the purchase\"\n}"
+            },
+            "description": "Customer cancels their own order. Only allowed from 'pending' or 'processing' status. Stock is automatically restored."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 Admin – Order Management",
+      "item": [
+        {
+          "name": "Get All Orders (No Filters)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/all?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "all"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Admin retrieves all orders paginated. No filters applied."
+          }
+        },
+        {
+          "name": "Get All Orders – Filter by Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/all?status=pending&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "all"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Filter all orders by status. Valid: pending, processing, shipped, delivered, cancelled."
+          }
+        },
+        {
+          "name": "Get All Orders – Filter by Date Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/all?startDate=2025-01-01&endDate=2025-12-31&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "all"],
+              "query": [
+                { "key": "startDate", "value": "2025-01-01" },
+                { "key": "endDate", "value": "2025-12-31" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Filter orders by creation date range. End date is inclusive (includes the entire end day)."
+          }
+        },
+        {
+          "name": "Get All Orders – Filter by Customer ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/all?userId=CUSTOMER_OBJECT_ID&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "all"],
+              "query": [
+                { "key": "userId", "value": "CUSTOMER_OBJECT_ID" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Filter all orders belonging to a specific customer by their MongoDB ObjectId."
+          }
+        },
+        {
+          "name": "Search Orders by Order Number",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/all?search=ORD-123&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "all"],
+              "query": [
+                { "key": "search", "value": "ORD-123" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Partial case-insensitive search on orderNumber field. Uses regex match on indexed field."
+          }
+        },
+        {
+          "name": "Get All Orders – Combined Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/all?status=shipped&startDate=2025-07-01&endDate=2025-07-31&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "all"],
+              "query": [
+                { "key": "status", "value": "shipped" },
+                { "key": "startDate", "value": "2025-07-01" },
+                { "key": "endDate", "value": "2025-07-31" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Combine multiple filters simultaneously."
+          }
+        },
+        {
+          "name": "Admin – Get Order Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}"]
+            },
+            "description": "Admin view of any order without ownership restriction."
+          }
+        },
+        {
+          "name": "Update Order Status – pending → processing",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"processing\",\n  \"description\": \"Order confirmed and being prepared for shipment.\"\n}"
+            },
+            "description": "Transitions order from 'pending' to 'processing'. Appends a timeline event. Valid transitions enforced."
+          }
+        },
+        {
+          "name": "Update Order Status – processing → shipped",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shipped\",\n  \"description\": \"Order dispatched via Blue Dart.\"\n}"
+            },
+            "description": "Transitions order from 'processing' to 'shipped'. After shipping, add tracking info using the /shipping endpoint."
+          }
+        },
+        {
+          "name": "Update Order Status – shipped → delivered",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"delivered\",\n  \"description\": \"Order successfully delivered to the customer.\"\n}"
+            },
+            "description": "Marks an order as delivered. This is a terminal status — no further transitions are allowed."
+          }
+        },
+        {
+          "name": "Add Tracking Information",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/shipping",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "shipping"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackingId\": \"TRK123456789IN\",\n  \"courier\": \"Blue Dart\",\n  \"trackingUrl\": \"https://www.bluedart.com/tracking/TRK123456789IN\",\n  \"estimatedDelivery\": \"2025-08-05T18:00:00.000Z\"\n}"
+            },
+            "description": "Attaches or updates courier and tracking information on an order. Requires order to be in processing or shipped status."
+          }
+        },
+        {
+          "name": "Update Delivery Timeline",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/delivery-timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "delivery-timeline"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estimatedDelivery\": \"2025-08-10T12:00:00.000Z\"\n}"
+            },
+            "description": "Updates just the estimated delivery date when there are delays or schedule changes."
+          }
+        },
+        {
+          "name": "Admin – Cancel Order (with Stock Restore)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "cancel"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Supplier out of stock for one or more items.\"\n}"
+            },
+            "description": "Admin cancels an order. Automatically restores product stock quantities in a MongoDB transaction. Cannot cancel delivered or already-cancelled orders."
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚠️ Business Rule Verification",
+      "item": [
+        {
+          "name": "[FAIL] Cancel Delivered Order (400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "cancel"]
+            },
+            "body": { "mode": "raw", "raw": "{}" },
+            "description": "Should return 400 – cannot cancel an order that is already delivered or cancelled."
+          }
+        },
+        {
+          "name": "[FAIL] Invalid Status Transition (400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/admin/{{orderId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "admin", "{{orderId}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"delivered\"\n}"
+            },
+            "description": "Should return 400 – e.g. pending → delivered is not a valid transition."
+          }
+        },
+        {
+          "name": "[FAIL] Customer Cancels Shipped Order (400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "{{orderId}}", "cancel"]
+            },
+            "body": { "mode": "raw", "raw": "{}" },
+            "description": "Should return 400 – customer cannot cancel an order that has already been shipped."
+          }
+        },
+        {
+          "name": "[FAIL] Access Another Customer's Order (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/ANOTHER_USERS_ORDER_ID",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders", "ANOTHER_USERS_ORDER_ID"]
+            },
+            "description": "Should return 403 – customers can only view their own orders."
+          }
+        }
+      ]
+    }
+  ]
+}
