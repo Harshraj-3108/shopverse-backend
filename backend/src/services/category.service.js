@@ -1,17 +1,19 @@
 // src/services/category.service.js
 
 import { CategoryRepository } from '../repositories/category.repository.js';
+import { cacheService, CACHE_KEYS, CACHE_TTL } from './cache.service.js';
 import { AppError } from '../errors/AppError.js';
 import { ERROR_CODES } from '../constants/errorCodes.js';
 
 const categoryRepository = new CategoryRepository();
 
 /**
- * Service to orchestrate category configurations and hierarchy calculations.
+ * Service to orchestrate category configurations, hierarchy calculations, and Redis caching.
  */
 export const categoryService = {
   /**
    * Create a new product category.
+   * Invalidates all category caches.
    * @param {Object} categoryData
    */
   createCategory: async (categoryData) => {
@@ -32,11 +34,14 @@ export const categoryService = {
       isActive,
     });
 
+    await cacheService.invalidateCategories();
+
     return category;
   },
 
   /**
    * Update category fields.
+   * Invalidates all category caches.
    * @param {string} id - Target category identifier
    * @param {Object} updateData
    */
@@ -59,11 +64,14 @@ export const categoryService = {
         throw AppError.notFound('Parent category not found', ERROR_CODES.NOT_FOUND);
       }
 
-      // Circular references check: ensure parent is not a child of the current category
+      // Circular references check
       let currentParent = parent;
       while (currentParent) {
         if (currentParent.parentId && currentParent.parentId.toString() === id) {
-          throw AppError.badRequest('Circular reference detected: Parent category is a descendant of the current category', ERROR_CODES.BAD_REQUEST);
+          throw AppError.badRequest(
+            'Circular reference detected: Parent category is a descendant of the current category',
+            ERROR_CODES.BAD_REQUEST
+          );
         }
         if (!currentParent.parentId) break;
         currentParent = await categoryRepository.findById(currentParent.parentId);
@@ -76,38 +84,52 @@ export const categoryService = {
     if (updateData.parentId !== undefined) category.parentId = updateData.parentId || null;
     if (updateData.isActive !== undefined) category.isActive = updateData.isActive;
 
-    await category.save(); // Save to trigger pre-save slugify hooks
+    await category.save();
+
+    await cacheService.invalidateCategories();
+
     return category;
   },
 
   /**
    * Fetch category detail by its unique slug.
+   * Result served from Redis cache when available.
    * @param {string} slug
    */
   getCategoryBySlug: async (slug) => {
-    const category = await categoryRepository.findBySlug(slug);
-    if (!category) {
-      throw AppError.notFound('Category not found', ERROR_CODES.NOT_FOUND);
-    }
-    return category;
+    const cacheKey = CACHE_KEYS.CATEGORY_DETAIL(slug);
+
+    return await cacheService.remember(cacheKey, async () => {
+      const category = await categoryRepository.findBySlug(slug);
+      if (!category) {
+        throw AppError.notFound('Category not found', ERROR_CODES.NOT_FOUND);
+      }
+      return category;
+    }, CACHE_TTL.CATEGORIES);
   },
 
   /**
    * Get all categories. Optionally constructs a nested tree hierarchy.
+   * Result served from Redis cache when available.
    * @param {string} format - format mode (e.g. 'tree' or 'flat')
    */
   getCategories: async (format = 'flat') => {
-    const categories = await categoryRepository.find({}, { limit: 1000, sort: { name: 1 } });
+    const cacheKey = CACHE_KEYS.CATEGORIES_ALL(format);
 
-    if (format === 'tree') {
-      return categoryService.buildTree(categories, null);
-    }
+    return await cacheService.remember(cacheKey, async () => {
+      const categories = await categoryRepository.find({}, { limit: 1000, sort: { name: 1 } });
 
-    return categories;
+      if (format === 'tree') {
+        return categoryService.buildTree(categories, null);
+      }
+
+      return categories;
+    }, CACHE_TTL.CATEGORIES);
   },
 
   /**
    * Delete a category. Fails if subcategories are referencing this category.
+   * Invalidates all category caches.
    * @param {string} id - Category identifier
    */
   deleteCategory: async (id) => {
@@ -119,10 +141,16 @@ export const categoryService = {
     // Block deletion if active nested subcategories are linked
     const subcategoriesCount = await categoryRepository.count({ parentId: id });
     if (subcategoriesCount > 0) {
-      throw AppError.badRequest('Cannot delete category containing subcategories. Relocate or delete children subcategories first.', ERROR_CODES.BAD_REQUEST);
+      throw AppError.badRequest(
+        'Cannot delete category containing subcategories. Relocate or delete children subcategories first.',
+        ERROR_CODES.BAD_REQUEST
+      );
     }
 
     await categoryRepository.deleteById(id);
+
+    await cacheService.invalidateCategories();
+
     return { id, message: 'Category deleted successfully.' };
   },
 
@@ -133,8 +161,8 @@ export const categoryService = {
    */
   buildTree: (categories, parentId = null) => {
     const tree = [];
-    
-    categories.forEach(cat => {
+
+    categories.forEach((cat) => {
       const catParentId = cat.parentId ? cat.parentId.toString() : null;
       const targetParentId = parentId ? parentId.toString() : null;
 

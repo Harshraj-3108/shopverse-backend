@@ -1124,5 +1124,68 @@
         "bearerFormat": "JWT"
       }
     }
+  },
+  "x-phase17-paths": {
+    "/homepage": {
+      "get": {
+        "summary": "Get aggregated homepage data (newest, top-rated products + featured categories)",
+        "description": "Returns a single cached response (Redis, 3 min TTL) containing newest products, top-rated products, and root-level featured categories. Designed to minimize round trips on the landing page.",
+        "tags": ["Homepage"],
+        "responses": {
+          "200": {
+            "description": "Homepage data retrieved",
+            "headers": {
+              "X-Cache": { "schema": { "type": "string", "enum": ["HIT", "MISS"] } }
+            }
+          }
+        }
+      }
+    },
+    "/admin/cache/stats": {
+      "get": {
+        "summary": "Admin – Get Redis cache statistics (key count + memory info)",
+        "tags": ["Cache – Admin"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Cache stats returned" },
+          "403": { "description": "Admin access required" }
+        }
+      }
+    },
+    "/admin/cache/products": {
+      "delete": {
+        "summary": "Admin – Invalidate all product-related cache entries",
+        "description": "Flushes product listings, search results, and homepage cache keys. Automatically triggered on product create/update/delete.",
+        "tags": ["Cache – Admin"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Product cache invalidated" },
+          "403": { "description": "Admin access required" }
+        }
+      }
+    },
+    "/admin/cache/categories": {
+      "delete": {
+        "summary": "Admin – Invalidate all category cache entries",
+        "tags": ["Cache – Admin"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Category cache invalidated" },
+          "403": { "description": "Admin access required" }
+        }
+      }
+    },
+    "/admin/cache/all": {
+      "delete": {
+        "summary": "Admin – Full Redis cache flush (use with caution)",
+        "tags": ["Cache – Admin"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "All cache entries cleared" },
+          "403": { "description": "Admin access required" }
+        }
+      }
+    }
   }
 }
+

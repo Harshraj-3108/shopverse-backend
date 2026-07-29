@@ -1,0 +1,274 @@
+{
+  "info": {
+    "_postman_id": "phase17-redis-caching",
+    "name": "ShopVerse – Phase 17: Redis Caching & Performance",
+    "description": "Collection for testing Redis caching, rate limiting, compression, and cache management APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api/v1", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "productSlug", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🏠 Homepage Cache",
+      "item": [
+        {
+          "name": "Get Homepage Data (First Call – MISS)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/homepage", "host": ["{{baseUrl}}"], "path": ["homepage"] },
+            "description": "First call fetches from MongoDB. Response header X-Cache: MISS. Data cached for 3 minutes."
+          }
+        },
+        {
+          "name": "Get Homepage Data (Second Call – HIT)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/homepage", "host": ["{{baseUrl}}"], "path": ["homepage"] },
+            "description": "Second call served from Redis. Response header X-Cache: HIT. ~50ms faster."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Product Cache",
+      "item": [
+        {
+          "name": "List Products (Cache MISS)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }]
+            },
+            "description": "First call hits MongoDB. X-Cache: MISS. Results cached for 5 minutes."
+          }
+        },
+        {
+          "name": "List Products (Cache HIT)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }]
+            },
+            "description": "Second call served from Redis cache. X-Cache: HIT."
+          }
+        },
+        {
+          "name": "Search Products (Cache MISS)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products?search=laptop&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "search", "value": "laptop" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Search queries are cached separately under search:* keys (2 min TTL)."
+          }
+        },
+        {
+          "name": "Get Product by Slug (Cache MISS)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products/slug/{{productSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "slug", "{{productSlug}}"]
+            },
+            "description": "Product detail fetched from MongoDB. Cached for 10 minutes under products:detail:slug key."
+          }
+        },
+        {
+          "name": "Get Product by Slug (Cache HIT)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products/slug/{{productSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "slug", "{{productSlug}}"]
+            },
+            "description": "Second call returns cached product detail."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🗂️ Category Cache",
+      "item": [
+        {
+          "name": "Get All Categories Flat (Cache MISS)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"] },
+            "description": "Flat category list fetched from MongoDB. Cached 15 minutes."
+          }
+        },
+        {
+          "name": "Get All Categories Flat (Cache HIT)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/categories", "host": ["{{baseUrl}}"], "path": ["categories"] },
+            "description": "Served from Redis cache."
+          }
+        },
+        {
+          "name": "Get Category Tree (Cache MISS)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories?format=tree",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"],
+              "query": [{ "key": "format", "value": "tree" }]
+            },
+            "description": "Tree format cached separately under categories:all:tree key."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 Rate Limiting Tests",
+      "item": [
+        {
+          "name": "Trigger Auth Rate Limit (Login x10+)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@test.com\",\n  \"password\": \"wrongpassword\"\n}"
+            },
+            "description": "Run this request 11+ times rapidly. After 10 attempts in 15 min, you'll receive 429 Too Many Requests with RateLimit-* headers."
+          }
+        },
+        {
+          "name": "Check Rate Limit Headers",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"valid@test.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "description": "Check response headers: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 Admin – Cache Management",
+      "item": [
+        {
+          "name": "Get Cache Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/cache/stats", "host": ["{{baseUrl}}"], "path": ["admin", "cache", "stats"] },
+            "description": "Returns total Redis key count and memory info string."
+          }
+        },
+        {
+          "name": "Invalidate Product Cache",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/cache/products", "host": ["{{baseUrl}}"], "path": ["admin", "cache", "products"] },
+            "description": "Manually flush all product listings, search results, and homepage cache keys."
+          }
+        },
+        {
+          "name": "Invalidate Category Cache",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/cache/categories", "host": ["{{baseUrl}}"], "path": ["admin", "cache", "categories"] },
+            "description": "Manually flush all category cache entries."
+          }
+        },
+        {
+          "name": "Full Cache Flush (Use With Caution)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/cache/all", "host": ["{{baseUrl}}"], "path": ["admin", "cache", "all"] },
+            "description": "Flushes ALL Redis cache keys. Use only in development or controlled production scenarios."
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚡ Cache Invalidation Flow",
+      "item": [
+        {
+          "name": "Step 1: Warm Cache (GET products)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/products?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["products"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] },
+            "description": "Warm the product cache with a GET request."
+          }
+        },
+        {
+          "name": "Step 2: Verify Cache HIT",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/products?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["products"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] },
+            "description": "Verify X-Cache: HIT header on second request."
+          }
+        },
+        {
+          "name": "Step 3: Admin Invalidates Product Cache",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/cache/products", "host": ["{{baseUrl}}"], "path": ["admin", "cache", "products"] },
+            "description": "Admin manually invalidates product cache."
+          }
+        },
+        {
+          "name": "Step 4: Verify Cache MISS After Invalidation",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/products?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["products"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] },
+            "description": "After invalidation, X-Cache: MISS. Data fetched fresh from MongoDB."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🗜️ Compression Verification",
+      "item": [
+        {
+          "name": "Verify Gzip Compression",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept-Encoding", "value": "gzip, deflate, br" }],
+            "url": { "raw": "{{baseUrl}}/products?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["products"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] },
+            "description": "Response should include Content-Encoding: gzip header when body > 1KB."
+          }
+        },
+        {
+          "name": "Health Check (No Rate Limit, No Compression)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "http://localhost:5000/health", "host": ["http://localhost:5000"], "path": ["health"] },
+            "description": "Health check endpoint is excluded from both rate limiting and compression."
+          }
+        }
+      ]
+    }
+  ]
+}

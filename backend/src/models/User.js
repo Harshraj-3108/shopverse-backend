@@ -65,6 +65,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Compound index: speeds up admin-level queries filtering by role + verification status
+userSchema.index({ role: 1, isEmailVerified: 1 });
+
+
 // Pre-save hook: Hash user password before database saves
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;

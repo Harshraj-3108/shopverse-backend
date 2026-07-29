@@ -40,6 +40,10 @@ const reviewSchema = new mongoose.Schema(
 // Compound index: enforces that a user can review a specific product only once
 reviewSchema.index({ userId: 1, productId: 1 }, { unique: true });
 
+// Compound index: speeds up product review listings sorted by date
+reviewSchema.index({ productId: 1, createdAt: -1 });
+
+
 /**
  * Static method to calculate and update average ratings and counts in Product.
  * Uses MongoDB Aggregation framework.

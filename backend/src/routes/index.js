@@ -11,6 +11,8 @@ import wishlistRoutes from './wishlist.routes.js';
 import orderRoutes from './order.routes.js';
 import paymentRoutes from './payment.routes.js';
 import couponRoutes from './coupon.routes.js';
+import homepageRoutes from './homepage.routes.js';
+import cacheRoutes from './cache.routes.js';
 
 const router = express.Router();
 
@@ -25,5 +27,7 @@ router.use('/wishlist', wishlistRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/coupons', couponRoutes);
+router.use('/homepage', homepageRoutes);
+router.use('/admin/cache', cacheRoutes);
 
 export default router;

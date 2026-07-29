@@ -35,6 +35,7 @@ const couponSchema = new mongoose.Schema(
     expiryDate: {
       type: Date,
       required: true,
+      index: true,
     },
     usageLimit: {
       type: Number,
@@ -53,6 +54,7 @@ const couponSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
     usedBy: [
       {
@@ -77,5 +79,8 @@ const couponSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Compound index for the most common lookup: active coupons that haven't expired
+couponSchema.index({ isActive: 1, expiryDate: 1 });
 
 export const Coupon = mongoose.model('Coupon', couponSchema);

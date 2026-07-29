@@ -9,16 +9,21 @@ import {
   resetPasswordSchema,
 } from '../validators/auth.validator.js';
 import { validate } from '../middlewares/validator.middleware.js';
+import {
+  authRateLimiter,
+  passwordResetRateLimiter,
+} from '../middlewares/rateLimiter.middleware.js';
 
 const router = express.Router();
 
 // Public routes for authorization
-router.post('/signup', validate(signupSchema), authController.signup);
+// Auth endpoints are protected against brute-force with dedicated rate limiters
+router.post('/signup', authRateLimiter, validate(signupSchema), authController.signup);
 router.get('/verify-email', authController.verifyEmail);
-router.post('/login', validate(loginSchema), authController.login);
+router.post('/login', authRateLimiter, validate(loginSchema), authController.login);
 router.post('/refresh-token', authController.refresh);
 router.post('/logout', authController.logout);
-router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
-router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
+router.post('/forgot-password', passwordResetRateLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
+router.post('/reset-password', passwordResetRateLimiter, validate(resetPasswordSchema), authController.resetPassword);
 
 export default router;
