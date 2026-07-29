@@ -1,0 +1,13 @@
+{
+  "name": "shopverse",
+  "version": "1.0.0",
+  "description": "Production-grade E-Commerce Engine",
+  "private": true,
+  "scripts": {
+    "dev": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:all": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "start": "cd backend && npm run start",
+    "build": "cd frontend && npm run build"
+  }
+}

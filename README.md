@@ -1,142 +1,166 @@
-# ApexCart - Production-Grade E-Commerce REST API Engine
+# 🛒 ShopVerse – Production-Grade E-Commerce REST API Engine
 
-A high-performance, modular, and production-grade E-Commerce backend built using Node.js, Express, and MongoDB. The platform implements **Clean Architecture** principles, the **Repository Pattern**, and a decoupled **Service Layer** to ensure maximum maintainability, scalability, and robust testing isolation.
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![Node.js](https://img.shields.io/badge/node.js-v20-blue)
+![Express](https://img.shields.io/badge/express-v4.19-lightgrey)
+![MongoDB](https://img.shields.io/badge/mongodb-v7.0-green)
+![Redis](https://img.shields.io/badge/redis-v7-red)
+![License](https://img.shields.io/badge/license-MIT-yellow)
 
----
+**ShopVerse** is an enterprise-level, production-ready E-Commerce REST API backend and React 19 frontend application built with **Node.js, Express, MongoDB, Redis, and React**.
 
-## 🚀 Features
-
-*   **Clean Architecture Scaffolding**: Decoupled layers separating route controllers, business logic services, database repositories, and database schemas.
-*   **Fail-Safe Environment validations**: Dynamic boot-time schema checking using Zod to prevent startup on invalid configurations.
-*   **Centralized Error Handling**: Custom operational error wrapper (`AppError`) mapping structured API payloads and hiding details in production.
-*   **Winston Logging Pipeline**: Daily rolling rotation logs logging http requests and error streams to disk.
-*   **Robust Security Handshake**: Secure password hashing (bcrypt), email verification callbacks, short-lived JWT access tokens, and HttpOnly cookies containing rotating refresh tokens.
-*   **Token Revocation**: Statefully blacklist refresh tokens in database on user logout.
-*   **Category Taxonomy Trees**: Nested parent-child category allocations preventing loops and building hierarchies.
+> 💡 **Docker-Optional Architecture:** ShopVerse runs natively on your local machine using **Node.js** and **MongoDB** (local or Atlas) without requiring Docker. Redis and Docker are completely **optional** for local development — if Redis or Docker is not installed, the application automatically degrades gracefully using in-memory fallbacks.
 
 ---
 
-## 🛠️ Tech Stack
+## 🌟 Key Features
 
-*   **Core**: Node.js, Express.js (ES Modules)
-*   **Database**: MongoDB + Mongoose ORM
-*   **Cache & Rate-Limiting**: Redis (planned)
-*   **Authentication & Security**: JSON Web Tokens (JWT), Cookie-Parser, Bcryptjs, Helmet
-*   **Validations**: Zod
-*   **Logging**: Winston + Winston Daily Rotate File
-*   **API Documentation**: Swagger / OpenAPI 3.0
-*   **Integrations**: Resend (email dispatches), ImageKit (planned), Razorpay (planned)
+### 🚀 Local Execution Without Docker
+- Runs directly using standard `Node.js` (v18 or v20).
+- Compatible with **MongoDB Atlas** cloud or local standalone MongoDB.
+- Redis caching & rate-limiting automatically degrade to in-memory fallbacks when Redis is not running.
+- **Docker Compose is supported but completely optional.**
+
+### 🔐 Authentication & User Security
+- Dual-token JWT system (Short-lived Access Token + HTTP-Only Refresh Cookie).
+- Email verification via Resend integration.
+- Password recovery via time-bound email reset tokens.
+- Immediate token blacklisting on logout.
+
+### 📦 Product & Category Catalog
+- Multilevel category hierarchy tree structure.
+- Advanced product search with filters, text relevancy score matching, and multi-sort criteria.
+- ImageKit integration for cloud media upload and management.
+
+### 🛒 Cart & Wishlist Engine
+- Real-time stock validation and state management.
+- One-click wishlist transfer into active shopping cart.
+
+### 💳 Checkout & Order Tracking
+- Transaction-guaranteed order placement with stock auto-reservation and cancellation restoration.
+- Razorpay payment integration with HMAC-SHA256 signature verification.
+- Order lifecycle management (`pending` → `processing` → `shipped` → `delivered` / `cancelled`) with full timeline audit trail.
 
 ---
 
-## 📂 Folder Structure
+## 🛠️ Technology Stack
 
+| Layer | Technology |
+|-------|------------|
+| **Backend Runtime** | Node.js (v18/v20 LTS), Express.js (v4.19) |
+| **Frontend Framework** | React 19, Vite, TypeScript, Tailwind CSS, Shadcn UI |
+| **Database** | MongoDB (Local or Atlas) |
+| **Caching & Rate Limiting** | Redis (Optional — in-memory fallback enabled) |
+| **Containerization** | Docker / Docker Compose (**Optional**) |
+
+---
+
+## 🚀 Quick Start (Local Setup Without Docker)
+
+### Prerequisites
+- **Node.js** (v18.0.0 or higher)
+- **MongoDB** (Local instance or free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster)
+
+---
+
+### Step 1: Clone Repository & Install Dependencies
+
+```bash
+git clone https://github.com/Harshraj-3108/shopverse-backend.git
+cd shopverse-backend
+npm install
 ```
-d:/E - commerce/
-├── backend/                  # Node.js + Express backend service
-│   ├── logs/                 # Encrypted/Plain rotational log storage
-│   ├── src/
-│   │   ├── app.js            # Express application setup
-│   │   ├── server.js         # HTTP server entrypoint
-│   │   ├── config/           # Setup wrappers (DB, Winston, Resend, etc.)
-│   │   ├── constants/        # Mapped static constants (errors codes)
-│   │   ├── controllers/      # Parsing layers and HTTP responses
-│   │   ├── errors/           # Operational errors classes and log formatters
-│   │   ├── middlewares/      # Interceptors (Protect, authorize, validation)
-│   │   ├── models/           # Mongoose schemas and collection indexes
-│   │   ├── repositories/     # Database-only queries (Base CRUD mappings)
-│   │   ├── routes/           # REST endpoints
-│   │   ├── services/         # Core business logic
-│   │   └── validators/       # Zod schemas verification
-│   ├── .env                  # Private configurations (git-ignored)
-│   ├── .env.example          # Blueprint configuration details
-│   └── swagger.json          # OpenAPI specifications
-├── frontend/                 # Client UI application placeholder
-├── README.md                 # Root master documentation
-└── .gitignore                # Root gitignore ignore boundaries
+
+---
+
+### Step 2: Configure Environment Variables
+
+Create `.env` inside the `backend/` directory (or copy `.env.example`):
+
+```bash
+cp backend/.env.example backend/.env
 ```
 
----
+#### Minimal Local `.env` Configuration:
 
-## 💻 Installation Steps
-
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/your-username/apexcart-backend.git
-    cd apexcart-backend
-    ```
-
-2.  **Install Dependencies**:
-    ```bash
-    cd backend
-    npm install
-    ```
-
-3.  **Setup Environment Variables**:
-    Create a `.env` file in the `backend` folder matching the `.env.example` blueprint.
-
-4.  **Launch local Database**:
-    Ensure MongoDB is running locally or supply a MongoDB Atlas connection URI.
-
-5.  **Run Server in Development Mode**:
-    ```bash
-    npm run dev
-    ```
-
-6.  **Run Server in Production Mode**:
-    ```bash
-    npm start
-    ```
-
----
-
-## ⚙️ Environment Variables
-
-Copy the `.env.example` file and configure these keys inside `backend/.env`:
-```ini
-# Server Config
+```env
 PORT=5000
 NODE_ENV=development
-
-# Database Config
-MONGO_URI=mongodb+srv://...
-
-# Redis Cache Config
-REDIS_URL=redis://...
-
-# JWT Keys
-JWT_SECRET=your_access_token_secret
-JWT_REFRESH_SECRET=your_refresh_token_secret
-
-# Third Party APIs
-RESEND_API_KEY=re_...
-IMAGEKIT_PUBLIC_KEY=...
-IMAGEKIT_PRIVATE_KEY=...
-IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/...
-RAZORPAY_KEY_ID=...
-RAZORPAY_KEY_SECRET=...
+MONGO_URI=mongodb://localhost:27017/shopverse
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=your_super_secret_access_token_key_min32chars
+JWT_REFRESH_SECRET=your_super_secret_refresh_token_key_min32chars
 ```
+
+> **Note:** If Redis is not installed on your system, the server will log a connection warning and automatically use in-memory rate limiting and direct database queries without crashing.
+
+---
+
+### Step 3: Run Development Server
+
+```bash
+# Start backend server from project root:
+npm run dev
+```
+
+Or run directly inside the `backend` directory:
+
+```bash
+cd backend
+npm run dev
+```
+
+The API server will launch at **`http://localhost:5000`**.  
+Interactive Swagger API documentation will be available at **`http://localhost:5000/api/v1/docs`**.
+
+---
+
+## 🐳 Optional Docker Setup (`docker compose up`)
+
+If Docker and Docker Desktop are installed on your machine, you can optionally run the containerized multi-service stack:
+
+```bash
+docker compose up --build -d
+```
+
+### Containerized Services:
+- **Backend API:** `http://localhost:5000`
+- **MongoDB ReplicaSet (`rs0`):** `localhost:27017`
+- **Redis Server:** `localhost:6379`
+
+To stop Docker services:
+
+```bash
+docker compose down
+```
+
+---
+
+## ⚙️ Environment Variables Reference
+
+| Variable | Required | Default / Example | Description |
+|----------|----------|-------------------|-------------|
+| `PORT` | No | `5000` | Server HTTP port |
+| `NODE_ENV` | No | `development` | Environment mode (`development`, `production`, `test`) |
+| `MONGO_URI` | Yes | `mongodb://localhost:27017/shopverse` | MongoDB connection URL (Local or Atlas) |
+| `REDIS_URL` | Optional | `redis://localhost:6379` | Redis connection URL (Falls back to in-memory if unavailable) |
+| `JWT_SECRET` | Yes | `min_32_characters_secret` | JWT Access Token signing key |
+| `JWT_REFRESH_SECRET` | Yes | `min_32_characters_secret` | JWT Refresh Token signing key |
+| `RESEND_API_KEY` | Optional | `re_xxxx` | Transactional email API key |
+| `IMAGEKIT_PUBLIC_KEY` | Optional | `public_xxxx` | ImageKit storage public key |
+| `IMAGEKIT_PRIVATE_KEY` | Optional | `private_xxxx` | ImageKit storage private key |
+| `IMAGEKIT_URL_ENDPOINT` | Optional | `https://ik.imagekit.io/xxx` | ImageKit CDN endpoint |
+| `RAZORPAY_KEY_ID` | Optional | `rzp_test_xxxx` | Razorpay payment key ID |
+| `RAZORPAY_KEY_SECRET` | Optional | `xxxx` | Razorpay payment key secret |
 
 ---
 
 ## 📖 API Documentation
 
-The project includes an OpenAPI 3.0 Swagger configuration detailing endpoint inputs/outputs located in [swagger.json](file:///d:/E%20-%20commerce/backend/swagger.json).
-
-### Route Summaries
-*   **Auth**: Signup (`/auth/signup`), Verify Email (`/auth/verify-email`), Login (`/auth/login`), Token Rotation (`/auth/refresh-token`), Logout (`/auth/logout`), Password Resets (`/auth/forgot-password` & `/auth/reset-password`).
-*   **Users Profile & Address Book**: Fetch/Edit Profile (`/users/profile`), Addresses CRUD (`/users/addresses` & `/users/addresses/:addressId`).
-*   **Category Taxonomies**: Nested categories trees (`/categories?format=tree`), flat lists (`/categories?format=flat`), slug details (`/categories/:slug`), and admin mutations.
+Interactive Swagger UI is accessible at **`http://localhost:5000/api/v1/docs`** during development.
 
 ---
 
-## 🗺️ Project Roadmap
+## 📜 License
 
-1.  **Phase 1-3**: Environment validations, Logger configurations, and MongoDB connection hooks. (Completed)
-2.  **Phase 4-5**: Bcrypt secure registers, Resend email dispatches, JWT logins, cookie rotation, and token blacklisting. (Completed)
-3.  **Phase 6**: User profiles and address book CRUD mapping. (Completed)
-4.  **Phase 7**: Categories taxonomies CRUD and tree calculations. (Completed)
-5.  **Phase 8-9**: Products catalog management, ImageKit uploads, pagination, search text-indexing. (Planned)
-6.  **Phase 10-12**: Product reviews scoring, Carts tracking, and Wishlists mapping. (Planned)
-7.  **Phase 13-16**: Coupon discount rules, checkouts verification, Razorpay webhook loops, and order tracking. (Planned)
-8.  **Phase 17-19**: Redis caching, Helmet configurations, Swagger visual endpoints, and multi-stage Dockerizations. (Planned)
+This project is licensed under the **MIT License**.

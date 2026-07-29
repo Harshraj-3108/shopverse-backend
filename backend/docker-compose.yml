@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopverse-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/shopverse?replicaSet=rs0
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=production_jwt_access_secret_key_shopverse_2026_min32chars
+      - JWT_REFRESH_SECRET=production_jwt_refresh_secret_key_shopverse_2026_min32chars
+      - RESEND_API_KEY=re_placeholder_key_for_docker
+      - IMAGEKIT_PUBLIC_KEY=public_placeholder_key
+      - IMAGEKIT_PRIVATE_KEY=private_placeholder_key
+      - IMAGEKIT_URL_ENDPOINT=https://ik.imagekit.io/shopverse
+      - RAZORPAY_KEY_ID=rzp_test_placeholder_key
+      - RAZORPAY_KEY_SECRET=razorpay_secret_placeholder
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shopverse-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  mongo:
+    image: mongo:7.0
+    container_name: shopverse-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - shopverse-network
+    entrypoint:
+      - bash
+      - -c
+      - |
+        /usr/local/bin/docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all &
+        MONGOPID=$$!
+        echo "Waiting for MongoDB startup..."
+        until mongosh --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+          sleep 1
+        done
+        echo "Initializing ReplicaSet rs0..."
+        mongosh --eval "try { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo:27017'}]}) } catch(e) { console.log(e) }"
+        wait $$MONGOPID
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopverse-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel notice
+    volumes:
+      - redis-data:/data
+    networks:
+      - shopverse-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  shopverse-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
+    driver: local
+  redis-data:
+    driver: local

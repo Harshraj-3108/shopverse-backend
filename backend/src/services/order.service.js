@@ -35,6 +35,34 @@ function assertValidTransition(currentStatus, nextStatus) {
   }
 }
 
+/**
+ * Helper to execute operations in a transaction session if supported (Replica Set / Atlas),
+ * or gracefully fallback to non-transactional execution for standalone local MongoDB instances.
+ */
+async function executeInSession(work) {
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+    const result = await work(session);
+    await session.commitTransaction();
+    return result;
+  } catch (error) {
+    if (session && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    // Fallback if local MongoDB is standalone without replica set
+    if (error.message && error.message.includes('Transaction numbers are only allowed')) {
+      return await work(null);
+    }
+    throw error;
+  } finally {
+    if (session) {
+      session.endSession();
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -44,12 +72,12 @@ function assertValidTransition(currentStatus, nextStatus) {
  */
 export const orderService = {
   // =========================================================================
-  // Order Placement (checkout flow – pre-existing, preserved)
+  // Order Placement (checkout flow)
   // =========================================================================
 
   /**
    * Place a new order using items in the customer's active cart.
-   * Runs inside a MongoDB session transaction to guarantee atomicity.
+   * Runs inside a MongoDB session transaction when supported, or falls back safely.
    *
    * @param {string} userId
    * @param {Object} checkoutData - { shippingAddress, paymentMode, discount }
@@ -57,12 +85,11 @@ export const orderService = {
   placeOrder: async (userId, checkoutData) => {
     const { shippingAddress, paymentMode, discount = 0 } = checkoutData;
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
+    return await executeInSession(async (session) => {
       // 1. Fetch populated cart
-      const cart = await Cart.findOne({ userId }).populate('items.productId').session(session);
+      const cartQuery = Cart.findOne({ userId }).populate('items.productId');
+      const cart = session ? await cartQuery.session(session) : await cartQuery;
+
       if (!cart || cart.items.length === 0) {
         throw AppError.badRequest('Your shopping cart is empty.', ERROR_CODES.BAD_REQUEST);
       }
@@ -107,7 +134,8 @@ export const orderService = {
         const timestamp = Date.now().toString().slice(-6);
         const randomStr = Math.floor(100 + Math.random() * 900).toString();
         orderNumber = `ORD-${timestamp}-${randomStr}`;
-        const existing = await orderRepository.model.findOne({ orderNumber }).session(session);
+        const query = orderRepository.model.findOne({ orderNumber });
+        const existing = session ? await query.session(session) : await query;
         if (!existing) isUnique = true;
       }
 
@@ -116,10 +144,17 @@ export const orderService = {
       // 5. Decrement stock and snapshot product details
       for (const item of cart.items) {
         const product = item.productId;
-        await Product.updateOne(
-          { _id: product._id },
-          { $inc: { stockQuantity: -item.quantity } }
-        ).session(session);
+        if (session) {
+          await Product.updateOne(
+            { _id: product._id },
+            { $inc: { stockQuantity: -item.quantity } }
+          ).session(session);
+        } else {
+          await Product.updateOne(
+            { _id: product._id },
+            { $inc: { stockQuantity: -item.quantity } }
+          );
+        }
 
         const primaryImage = product.images?.find((img) => img.isPrimary) || product.images?.[0];
         orderItems.push({
@@ -156,33 +191,37 @@ export const orderService = {
         ],
       });
 
-      await order.save({ session });
+      if (session) {
+        await order.save({ session });
+      } else {
+        await order.save();
+      }
 
-      // 7. Record coupon usage atomically
+      // 7. Record coupon usage
       if (couponDoc) {
-        await Coupon.updateOne(
-          { _id: couponDoc._id },
-          {
-            $inc: { usedCount: 1 },
-            $push: { usedBy: { userId, orderId: order._id, usedAt: new Date() } },
-          }
-        ).session(session);
+        const couponUpdate = {
+          $inc: { usedCount: 1 },
+          $push: { usedBy: { userId, orderId: order._id, usedAt: new Date() } },
+        };
+        if (session) {
+          await Coupon.updateOne({ _id: couponDoc._id }, couponUpdate).session(session);
+        } else {
+          await Coupon.updateOne({ _id: couponDoc._id }, couponUpdate);
+        }
       }
 
       // 8. Clear cart
       cart.items = [];
       cart.couponCode = null;
       cart.discount = 0;
-      await cart.save({ session });
+      if (session) {
+        await cart.save({ session });
+      } else {
+        await cart.save();
+      }
 
-      await session.commitTransaction();
       return order;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
   },
 
   // =========================================================================
@@ -209,17 +248,17 @@ export const orderService = {
   },
 
   /**
-   * Fetch a specific order, enforcing ownership for non-admin callers.
-   * @param {string} userId   - Requesting user ID
-   * @param {string} orderId  - Target order ID
-   * @param {boolean} isAdmin - Skip ownership check for admin callers
+   * Fetch single order by ID with ownership assertion.
+   * @param {string} userId
+   * @param {string} orderId
    */
-  getOrderDetails: async (userId, orderId, isAdmin = false) => {
+  getOrderById: async (userId, orderId) => {
     const order = await orderRepository.findById(orderId);
     if (!order) {
       throw AppError.notFound('Order not found.', ERROR_CODES.NOT_FOUND);
     }
-    if (!isAdmin && order.userId.toString() !== userId.toString()) {
+
+    if (order.userId.toString() !== userId.toString()) {
       throw AppError.forbidden(
         'You do not have permission to view this order.',
         ERROR_CODES.FORBIDDEN
@@ -229,7 +268,7 @@ export const orderService = {
   },
 
   /**
-   * Return the timeline array of an order (ownership-checked).
+   * Fetch order timeline audit trail.
    * @param {string} userId
    * @param {string} orderId
    */
@@ -253,19 +292,17 @@ export const orderService = {
 
   /**
    * Cancel an order on behalf of the customer.
-   * Only allowed from statuses in CUSTOMER_CANCELLABLE_STATUSES.
-   * Restores stock quantities inside a MongoDB transaction.
+   * Restores stock quantities gracefully on both transactional & standalone MongoDB.
    *
    * @param {string} userId
    * @param {string} orderId
    * @param {string} [reason] - Optional cancellation reason
    */
   cancelOrder: async (userId, orderId, reason = '') => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    return await executeInSession(async (session) => {
+      const query = orderRepository.model.findById(orderId);
+      const order = session ? await query.session(session) : await query;
 
-    try {
-      const order = await orderRepository.model.findById(orderId).session(session);
       if (!order) {
         throw AppError.notFound('Order not found.', ERROR_CODES.NOT_FOUND);
       }
@@ -284,10 +321,17 @@ export const orderService = {
 
       // Restore stock for every item
       for (const item of order.items) {
-        await Product.updateOne(
-          { _id: item.productId },
-          { $inc: { stockQuantity: item.quantity } }
-        ).session(session);
+        if (session) {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { stockQuantity: item.quantity } }
+          ).session(session);
+        } else {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { stockQuantity: item.quantity } }
+          );
+        }
       }
 
       // Append timeline event and update status
@@ -295,33 +339,27 @@ export const orderService = {
         ? `Order cancelled by customer. Reason: ${reason}`
         : STATUS_DESCRIPTIONS[ORDER_STATUSES.CANCELLED];
 
-      const updated = await orderRepository.model.findByIdAndUpdate(
-        orderId,
-        {
-          $push: {
-            timeline: {
-              status: ORDER_STATUSES.CANCELLED,
-              description: cancelDescription,
-              actor: 'customer',
-              timestamp: new Date(),
-            },
-          },
-          $set: {
+      const updateData = {
+        $push: {
+          timeline: {
             status: ORDER_STATUSES.CANCELLED,
-            cancellationReason: reason || null,
+            description: cancelDescription,
+            actor: 'customer',
+            timestamp: new Date(),
           },
         },
-        { new: true, runValidators: true, session }
-      );
+        $set: {
+          status: ORDER_STATUSES.CANCELLED,
+          cancellationReason: reason || null,
+        },
+      };
 
-      await session.commitTransaction();
+      const opts = { new: true, runValidators: true };
+      if (session) opts.session = session;
+
+      const updated = await orderRepository.model.findByIdAndUpdate(orderId, updateData, opts);
       return updated;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
   },
 
   // =========================================================================
@@ -330,7 +368,7 @@ export const orderService = {
 
   /**
    * Paginated, filtered, searchable list of all orders (admin).
-   * @param {Object} filters - { status, paymentStatus, userId, startDate, endDate, search, page, limit }
+   * @param {Object} filters
    */
   getAllOrders: async (filters = {}) => {
     const page = parseInt(filters.page, 10) || 1;
@@ -348,17 +386,27 @@ export const orderService = {
     };
   },
 
+  /**
+   * Fetch any order by ID (admin).
+   * @param {string} orderId
+   */
+  getAdminOrderById: async (orderId) => {
+    const order = await orderRepository.findById(orderId);
+    if (!order) {
+      throw AppError.notFound('Order not found.', ERROR_CODES.NOT_FOUND);
+    }
+    return order;
+  },
+
   // =========================================================================
   // Admin – Update order status
   // =========================================================================
 
   /**
    * Move an order to a new status (admin).
-   * Validates the transition, appends a timeline event.
-   *
    * @param {string} orderId
    * @param {string} newStatus
-   * @param {string} [description]  - Custom timeline description
+   * @param {string} [description]
    */
   updateOrderStatus: async (orderId, newStatus, description = '') => {
     const order = await orderRepository.findById(orderId);
@@ -367,7 +415,6 @@ export const orderService = {
     }
 
     assertValidTransition(order.status, newStatus);
-
     const timelineDescription = description || STATUS_DESCRIPTIONS[newStatus];
 
     const updated = await orderRepository.pushTimelineEvent(
@@ -383,7 +430,7 @@ export const orderService = {
   },
 
   // =========================================================================
-  // Admin – Cancel order (with optional reason, restores stock)
+  // Admin – Cancel order
   // =========================================================================
 
   /**
@@ -392,16 +439,14 @@ export const orderService = {
    * @param {string} [reason]
    */
   adminCancelOrder: async (orderId, reason = '') => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    return await executeInSession(async (session) => {
+      const query = orderRepository.model.findById(orderId);
+      const order = session ? await query.session(session) : await query;
 
-    try {
-      const order = await orderRepository.model.findById(orderId).session(session);
       if (!order) {
         throw AppError.notFound('Order not found.', ERROR_CODES.NOT_FOUND);
       }
 
-      // Cannot cancel terminal statuses
       if (
         order.status === ORDER_STATUSES.DELIVERED ||
         order.status === ORDER_STATUSES.CANCELLED
@@ -414,99 +459,84 @@ export const orderService = {
 
       // Restore stock
       for (const item of order.items) {
-        await Product.updateOne(
-          { _id: item.productId },
-          { $inc: { stockQuantity: item.quantity } }
-        ).session(session);
+        if (session) {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { stockQuantity: item.quantity } }
+          ).session(session);
+        } else {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { stockQuantity: item.quantity } }
+          );
+        }
       }
 
       const cancelDescription = reason
         ? `Order cancelled by admin. Reason: ${reason}`
         : 'Order cancelled by admin.';
 
-      const updated = await orderRepository.model.findByIdAndUpdate(
-        orderId,
-        {
-          $push: {
-            timeline: {
-              status: ORDER_STATUSES.CANCELLED,
-              description: cancelDescription,
-              actor: 'admin',
-              timestamp: new Date(),
-            },
-          },
-          $set: {
+      const updateData = {
+        $push: {
+          timeline: {
             status: ORDER_STATUSES.CANCELLED,
-            cancellationReason: reason || null,
+            description: cancelDescription,
+            actor: 'admin',
+            timestamp: new Date(),
           },
         },
-        { new: true, runValidators: true, session }
-      );
+        $set: {
+          status: ORDER_STATUSES.CANCELLED,
+          cancellationReason: reason || null,
+        },
+      };
 
-      await session.commitTransaction();
+      const opts = { new: true, runValidators: true };
+      if (session) opts.session = session;
+
+      const updated = await orderRepository.model.findByIdAndUpdate(orderId, updateData, opts);
       return updated;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
   },
 
   // =========================================================================
-  // Admin – Update shipping / courier information
+  // Admin – Shipping and tracking updates
   // =========================================================================
 
   /**
-   * Attach or update courier/tracking information on an order.
+   * Attach/update shipping tracking details for an order (admin).
    * @param {string} orderId
-   * @param {Object} shippingData - { trackingId, courier, trackingUrl, estimatedDelivery }
+   * @param {Object} shippingInfo - { trackingId, courier, trackingUrl, estimatedDelivery }
    */
-  updateShippingInfo: async (orderId, shippingData) => {
+  updateShippingInfo: async (orderId, shippingInfo) => {
     const order = await orderRepository.findById(orderId);
     if (!order) {
       throw AppError.notFound('Order not found.', ERROR_CODES.NOT_FOUND);
     }
 
-    // Only shipped/processing orders should have tracking information
-    if (
-      order.status === ORDER_STATUSES.PENDING ||
-      order.status === ORDER_STATUSES.CANCELLED
-    ) {
+    if (order.status !== ORDER_STATUSES.SHIPPED) {
       throw AppError.badRequest(
-        `Cannot add tracking information to an order in '${order.status}' status.`,
+        `Shipping tracking details can only be added when order is in 'shipped' status. Current: '${order.status}'`,
         ERROR_CODES.BAD_REQUEST
       );
     }
 
-    const updated = await orderRepository.updateShippingInfo(orderId, shippingData);
+    const updated = await orderRepository.updateShipping(orderId, shippingInfo);
     return updated;
   },
 
-  // =========================================================================
-  // Admin – Update delivery timeline (estimated delivery date)
-  // =========================================================================
-
   /**
-   * Update just the estimated delivery date on the shipping info sub-document.
+   * Update estimated delivery date on an order's shipping info (admin).
    * @param {string} orderId
-   * @param {string} estimatedDelivery - ISO date string
+   * @param {string|Date} estimatedDelivery
    */
   updateDeliveryTimeline: async (orderId, estimatedDelivery) => {
     const order = await orderRepository.findById(orderId);
     if (!order) {
       throw AppError.notFound('Order not found.', ERROR_CODES.NOT_FOUND);
     }
-    if (order.status === ORDER_STATUSES.CANCELLED || order.status === ORDER_STATUSES.DELIVERED) {
-      throw AppError.badRequest(
-        `Cannot update delivery timeline for an order in '${order.status}' status.`,
-        ERROR_CODES.BAD_REQUEST
-      );
-    }
 
-    const updated = await orderRepository.updateShippingInfo(orderId, {
-      estimatedDelivery: new Date(estimatedDelivery),
-    });
+    const updated = await orderRepository.updateDeliveryDate(orderId, estimatedDelivery);
     return updated;
   },
 };
